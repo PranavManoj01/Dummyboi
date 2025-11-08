@@ -1,24 +1,7 @@
-import logging
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pathlib import Path
-from src.routers import analysis
 import cv2
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# ---------------- Upload Directory ----------------
-UPLOAD_DIR = Path("uploads")
-if not UPLOAD_DIR.exists():
-    UPLOAD_DIR.mkdir()
-    logger.info(f"Created missing uploads directory at: {UPLOAD_DIR.resolve()}")
-else:
-    logger.info(f"Uploads directory already exists: {UPLOAD_DIR.resolve()}")
-
-# ---------------- ImageAnalyzer Class ----------------
 class ImageAnalyzer:
     """Handles image analysis and processing operations"""
     
@@ -30,7 +13,7 @@ class ImageAnalyzer:
         if img is None:
             raise ValueError("Invalid image format")
         return img
-    
+
     @staticmethod
     def calculate_blur_score(image: np.ndarray) -> float:
         """Calculate blur detection score (0-100)"""
@@ -44,7 +27,15 @@ class ImageAnalyzer:
         """Calculate average brightness (0-100)"""
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         brightness = np.mean(gray)
-        return round((brightness / 255) * 100, 2)
+        return round((brightness / 255) * 100, 2) 
+
+    @staticmethod
+    def count_objects(image: np.ndarray) -> int:
+        """Detect and count objects in image"""
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY) #Changed alpha value orginally 255
+        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        return len(contours)
     
     @staticmethod
     def calculate_contrast(image: np.ndarray) -> float:
@@ -52,14 +43,6 @@ class ImageAnalyzer:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         contrast = np.std(gray)
         return round((contrast / 128) * 100, 2)
-    
-    @staticmethod
-    def count_objects(image: np.ndarray) -> int:
-        """Detect and count objects in image"""
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
-        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        return len(contours)
     
     @staticmethod
     def enhance_image(image: np.ndarray) -> np.ndarray:
@@ -78,11 +61,12 @@ class ImageAnalyzer:
         enhanced = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
         return enhanced
     
+
     @staticmethod
     def get_quality_rating(blur: float, brightness: float, contrast: float) -> str:
         """Generate quality rating based on metrics"""
         score = (blur + brightness + contrast) / 3
-        if score >= 70:
+        if score >= 70: #orignally 70
             return "Excellent"
         elif score >= 50:
             return "Good"
@@ -90,6 +74,9 @@ class ImageAnalyzer:
             return "Fair"
         else:
             return "Poor"
+        
+
+# ==================== TRANSFORMATION METHODS ====================
     
     @staticmethod
     def resize_image(image: np.ndarray, width: int, height: int) -> np.ndarray:
@@ -101,7 +88,7 @@ class ImageAnalyzer:
     
     @staticmethod
     def resize_by_percentage(image: np.ndarray, percentage: int) -> np.ndarray:
-        """Resize image by percentage"""
+        """Resize image by percentage (50 = 50% of original)"""
         if percentage <= 0 or percentage > 500:
             raise ValueError("Percentage must be between 1 and 500")
         height, width = image.shape[:2]
@@ -112,18 +99,17 @@ class ImageAnalyzer:
     
     @staticmethod
     def crop_image(image: np.ndarray, x: int, y: int, width: int, height: int) -> np.ndarray:
-        """Crop image from position (x,y)"""
+        """Crop image from position (x,y) with specified dimensions"""
         img_height, img_width = image.shape[:2]
-        
+
         if x < 0 or y < 0 or width <= 0 or height <= 0:
             raise ValueError("Invalid crop parameters")
-        
         if x + width > img_width or y + height > img_height:
-            raise ValueError("Crop area exceeds image boundaries")
-        
+            raise ValueError("Crop area exceeds image boundaries") 
         cropped = image[y:y+height, x:x+width]
         return cropped
     
+
     @staticmethod
     def apply_filter(image: np.ndarray, filter_type: str) -> np.ndarray:
         """Apply various filters to image"""
@@ -150,7 +136,7 @@ class ImageAnalyzer:
     
     @staticmethod
     def rotate_image(image: np.ndarray, angle: float) -> np.ndarray:
-        """Rotate image by specified angle"""
+        """Rotate image by specified angle (degrees)"""
         height, width = image.shape[:2]
         center = (width // 2, height // 2)
         matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
@@ -167,39 +153,3 @@ class ImageAnalyzer:
         else:
             raise ValueError("Direction must be 'horizontal' or 'vertical'")
         return flipped
-
-# ---------------- FastAPI App ----------------
-app = FastAPI(
-    title="Smart Image Processing API",
-    description="Analyze, enhance, and transform images with quality metrics",
-    version="2.0.0"
-)
-
-# ---------------- Middleware ----------------
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ---------------- Routers ----------------
-app.include_router(analysis.router)
-
-# ---------------- Endpoints ----------------
-@app.get("/")
-def root():
-    """Root endpoint to verify API is running."""
-    return {"status": "OK", "message": "Smart Image Processing API is live!"}
-
-@app.get("/health")
-def health_check():
-    """Health check endpoint for CI/CD monitoring."""
-    logger.info("Health check requested")
-    return {"status": "healthy"}
-
-if __name__ == "__main__":
-    import uvicorn
-    # NOTE: Port 8000 is the default used in the original project setup
-    uvicorn.run(app, host="0.0.0.0", port=8000)

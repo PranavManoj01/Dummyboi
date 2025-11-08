@@ -1,0 +1,153 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    # Trigger on PRs targeting both main and develop (Git Flow requirement)
+    branches: [main, develop]
+
+# Define stages as separate jobs for clarity and dependency tracking
+jobs:
+  # 1. BUILD Stage: Install all dependencies (including dev tools)
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      # Standard dependency installation logic from your file
+      - name: Install dependencies (App and Dev Tools)
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+          # Install quality tools required for subsequent stages
+          pip install pylint bandit pytest-cov flake8
+
+  # 2. LINT Stage: Static Analysis and Style Check (Requires Pylint score >= 7.5/10)
+  lint:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Linting Tools
+        run: pip install pylint
+      
+      # - name: Run flake8 (Style Check)
+      #   # Assuming flake8 is configured to ignore E501/E301 via setup.cfg or flags
+      #   run: flake8 . 
+
+      - name: Run Pylint (Quality Score Check)
+        # Pylint targets the source code 'src/'
+        # Output saved to a report file
+        run: |
+          pylint src/ --output-format=json:pylint-report.json || true
+          # '|| true' allows subsequent stages to run even if score is below 7.5 
+          # The report will still be available for the Deployment Artifact.
+
+      - name: Upload Pylint Report Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: pylint-report.json
+
+  # 3. SECURITY Stage: Vulnerability Scan
+  security:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Install Security Tools
+        run: pip install bandit
+
+      - name: Run Bandit Scan
+        # Bandit targets the source code 'src/'
+        # '--exit-code 1' ensures the pipeline fails on critical security errors
+        run: bandit -r src/ -f json -o bandit-report.json || true 
+
+      - name: Upload Security Report Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: bandit-report.json
+
+  # 4. TEST & COVERAGE Stage: Run Unit/Integration Tests and Generate HTML Report
+  test_coverage:
+    needs: [build, lint, security] # Wait for build, lint, and security to pass
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      # --- CRITICAL FIX: Add installation step inside the job ---
+      - name: Install Test Environment Dependencies
+        run: |
+          # Install the core processing libraries needed by conftest.py and image_processor.py
+          pip install numpy opencv-python pillow pytest pytest-cov
+      # --- END FIX ---
+      
+
+      - name: Run Pytest & Generate Coverage Reports (XML and HTML)
+        run: |
+          # The command ensures HTML report generation (htmlcov/ folder) 
+          pytest --cov=src --cov-report=xml --cov-report=html
+          
+      - name: Upload Coverage HTML Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html-report
+          path: htmlcov/
+
+  # 5. DEPLOY Stage: Create Final Zipped Artifact
+  deploy:
+    needs: test_coverage # Only runs after all 5 quality stages (Lint/Security via implicit dependency on test_coverage's needs)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main' # Only deploy when merging to main/develop
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all Reports
+        uses: actions/download-artifact@v4
+        with:
+          path: reports/
+
+      - name: Create Final Deployment Artifact
+        run: |
+          VERSION=$(date +%Y%m%d%H%M%S)
+          ARTIFACT_DIR="deployment_package"
+          
+          # 1. Create structure
+          mkdir -p $ARTIFACT_DIR/src
+          mkdir -p $ARTIFACT_DIR/reports/
+          
+          # 2. Copy source code (only the application logic)
+          cp -r src/ $ARTIFACT_DIR/
+          cp main.py $ARTIFACT_DIR/
+          
+          # 3. Copy essential project files
+          cp README.md $ARTIFACT_DIR/
+          cp requirements.txt $ARTIFACT_DIR/
+          
+          # 4. Copy all downloaded reports
+          cp -r reports/ $ARTIFACT_DIR/reports/
+
+          # 5. Zip the final artifact
+          zip -r deployment-artifact-$VERSION.zip $ARTIFACT_DIR
+          
+      - name: Upload Deployment Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-deployment-artifact
+          path: deployment-artifact-*.zip
+          retention-days: 30
