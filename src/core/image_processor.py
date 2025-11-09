@@ -13,7 +13,7 @@ class ImageAnalyzer:
         if img is None:
             raise ValueError("Invalid image format")
         return img
-
+    
     @staticmethod
     def calculate_blur_score(image: np.ndarray) -> float:
         """Calculate blur detection score (0-100)"""
@@ -27,13 +27,13 @@ class ImageAnalyzer:
         """Calculate average brightness (0-100)"""
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         brightness = np.mean(gray)
-        return round((brightness / 255) * 100, 2) 
-
+        return round((brightness / 255) * 100, 2)
+    
     @staticmethod
     def count_objects(image: np.ndarray) -> int:
         """Detect and count objects in image"""
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY) #Changed alpha value orginally 255
+        _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         return len(contours)
     
@@ -66,7 +66,7 @@ class ImageAnalyzer:
     def get_quality_rating(blur: float, brightness: float, contrast: float) -> str:
         """Generate quality rating based on metrics"""
         score = (blur + brightness + contrast) / 3
-        if score >= 70: #orignally 70
+        if score >= 70: 
             return "Excellent"
         elif score >= 50:
             return "Good"
@@ -74,10 +74,7 @@ class ImageAnalyzer:
             return "Fair"
         else:
             return "Poor"
-        
-
-# ==================== TRANSFORMATION METHODS ====================
-    
+        #====================== TRANSFORMATIONS
     @staticmethod
     def resize_image(image: np.ndarray, width: int, height: int) -> np.ndarray:
         """Resize image to specified dimensions"""
@@ -97,19 +94,6 @@ class ImageAnalyzer:
         resized = cv2.resize(image, (new_width, new_height))
         return resized
     
-    @staticmethod
-    def crop_image(image: np.ndarray, x: int, y: int, width: int, height: int) -> np.ndarray:
-        """Crop image from position (x,y) with specified dimensions"""
-        img_height, img_width = image.shape[:2]
-
-        if x < 0 or y < 0 or width <= 0 or height <= 0:
-            raise ValueError("Invalid crop parameters")
-        if x + width > img_width or y + height > img_height:
-            raise ValueError("Crop area exceeds image boundaries") 
-        cropped = image[y:y+height, x:x+width]
-        return cropped
-    
-
     @staticmethod
     def apply_filter(image: np.ndarray, filter_type: str) -> np.ndarray:
         """Apply various filters to image"""

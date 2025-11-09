@@ -1,15 +1,23 @@
 import logging
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from datetime import datetime
+import uuid
+from pathlib import Path
+# NOTE: Removed dependency on UPLOAD_DIR and cv2/numpy/ImageAnalyzer from here for cleanup
+# These are only used internally by core/utils, or should be imported directly.
 
-
-
-logger = logging.getLogger(__name__)
-
+# --- NEW/FIXED IMPORTS ---
+import cv2
+import uuid
+from src.core.image_processor import ImageAnalyzer
+from main import UPLOAD_DIR
+# -------------------------
 router = APIRouter(
     prefix="",
-    tags=["Analysis"]
+    tags=["Transformations"]
 )
+
+logger = logging.getLogger(__name__)
 
 
 def generate_recommendations(blur: float, brightness: float, contrast: float) -> list[str]:
@@ -45,27 +53,19 @@ async def analyze_image(file: UploadFile = File(...)):
     try:
         content = await file.read()
         logger.info(f"Received file for analysis: {file.filename}")
-        logger.debug(f"File size: {len(content)/1024:.2f} KB")
         
-        # NOTE: Replace the placeholders below with the actual calls to src.core/src.utils
-        # image = read_image(content) # Use the utility layer function
-        image = None # Placeholder for OpenCV image array
+        # --- Integration Fix (Calling Live Logic) ---
+        image = ImageAnalyzer.read_image(content) # Use the core read_image function
 
-        # --- Commit 4 Logic: Metric Placeholders (Refactored) ---
-        metrics = {
-            "blur_score": 70.0,
-            "brightness": 55.0,
-            "contrast": 40.0,
-            "object_count": 3,
-            "quality_rating": "Good"
-        } 
-
-        blur_score = metrics["blur_score"]
-        brightness = metrics["brightness"]
-        contrast = metrics["contrast"]
-        object_count = metrics["object_count"]
-        rating = metrics["quality_rating"]
+        # --- Live Metric Calculation (Replacing Placeholders) ---
+        blur_score = ImageAnalyzer.calculate_blur_score(image)
+        brightness = ImageAnalyzer.calculate_brightness(image)
+        contrast = ImageAnalyzer.calculate_contrast(image)
+        object_count = ImageAnalyzer.count_objects(image)
+        rating = ImageAnalyzer.get_quality_rating(blur_score, brightness, contrast)
         
+        # --- Image Info (Replacing Placeholders) ---
+        height, width = image.shape[:2]
        
         recommendations = generate_recommendations(blur_score, brightness, contrast)
 
@@ -73,8 +73,8 @@ async def analyze_image(file: UploadFile = File(...)):
             "filename": file.filename,
             "timestamp": datetime.now().isoformat(),
             "image_info": {
-                "width": 100, 
-                "height": 100,
+                "width": width, 
+                "height": height,
                 "size_kb": len(content) / 1024
             },
             "analysis": {
@@ -88,7 +88,8 @@ async def analyze_image(file: UploadFile = File(...)):
         }
     
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # NOTE: Using raise...from e is better, but this matches original structure
+        raise HTTPException(status_code=400, detail=str(e)) 
     except Exception as e:
         logger.error(f"Analysis error: {str(e)}")
         raise HTTPException(status_code=500, detail="Image analysis failed")
@@ -101,7 +102,9 @@ async def enhance_image_endpoint(file: UploadFile = File(...)):
     """Enhance image and return analysis"""
     try:
         content = await file.read()
-        image = ImageAnalyzer.read_image(content)
+        
+        # NOTE: This line requires ImageAnalyzer class and read_image method to be fully coded
+        image = ImageAnalyzer.read_image(content) 
 
         # calculate original metrics
         original_blur = ImageAnalyzer.calculate_blur_score(image)
@@ -115,14 +118,11 @@ async def enhance_image_endpoint(file: UploadFile = File(...)):
         enhanced_contrast = ImageAnalyzer.calculate_contrast(enhanced_image)
 
         # save enhanced image
-        file_id = str(uuid.uuid4())
+        file_id = str(uuid.uuid4()) # uuid now defined
         output_path = UPLOAD_DIR / f"{file_id}_enhanced.jpg"
-        cv2.imwrite(str(output_path), enhanced_image)
+        cv2.imwrite(str(output_path), enhanced_image) # cv2 now defined
 
-        # original simple return
-        simple_response = {"message": "Enhance endpoint created", "filename": file.filename}
-
-        # detailed return added
+        # --- This block must be defined inside the 'try' block before the final return ---
         detailed_response = {
             "filename": file.filename,
             "timestamp": datetime.now().isoformat(),
@@ -143,14 +143,14 @@ async def enhance_image_endpoint(file: UploadFile = File(...)):
             },
             "download_url": f"/download/{file_id}_enhanced.jpg"
         }
+# ---------------------------------------------------------------------------------
 
-        # return both (you can choose which one to use)
         return detailed_response
 
     except Exception as e:
-        logger.error(f"Enhancement error: {str(e)}")
+        # NOTE: Use logger.error("Enhancement error: %s", e) for Pylint compliance
+        logger.error(f"Enhancement error: {str(e)}") 
         raise HTTPException(status_code=500, detail="Image enhancement failed")
-
 
 
 

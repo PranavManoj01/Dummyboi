@@ -1,4 +1,23 @@
-@app.post("/resize")
+import logging
+from datetime import datetime
+import uuid
+# Import FastAPI components needed for all endpoints
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query 
+from fastapi.responses import FileResponse 
+
+# Import the core logic and utilities (currently located in main.py)
+from main import UPLOAD_DIR
+import cv2
+from src.core.image_processor import ImageAnalyzer
+logger = logging.getLogger(__name__)
+
+# --- CRITICAL FIX: DEFINE THE ROUTER OBJECT ---
+router = APIRouter(
+    prefix="",
+    tags=["Transformations"]
+)
+
+@router.post("/resize")
 async def resize_image(
     file: UploadFile = File(...),
     width: int = Query(None),
@@ -43,7 +62,7 @@ async def resize_image(
         raise HTTPException(status_code=500, detail="Image resize failed")
     
 
-@app.post("/crop")
+@router.post("/crop")
 async def crop_image(
     file: UploadFile = File(...),
     x: int = Query(...),
@@ -78,7 +97,7 @@ async def crop_image(
         raise HTTPException(status_code=500, detail="Image crop failed")
     
 
-@app.post("/filter")
+@router.post("/filter")
 async def apply_filter(
     file: UploadFile = File(...),
     filter_type: str = Query(...)
@@ -112,7 +131,7 @@ async def apply_filter(
         logger.error(f"Filter error: {str(e)}")
         raise HTTPException(status_code=500, detail="Filter application failed")
 
-@app.post("/rotate")
+@router.post("/rotate")
 async def rotate_image(
     file: UploadFile = File(...),
     angle: float = Query(...)
@@ -144,7 +163,7 @@ async def rotate_image(
         logger.error(f"Rotate error: {str(e)}")
         raise HTTPException(status_code=500, detail="Image rotation failed")
     
-@app.post("/flip")
+@router.post("/flip")
 async def flip_image(
     file: UploadFile = File(...),
     direction: str = Query(...)
@@ -176,7 +195,7 @@ async def flip_image(
         logger.error(f"Flip error: {str(e)}")
         raise HTTPException(status_code=500, detail="Image flip failed")
     
-@app.get("/download/{file_id}")
+@router.get("/download/{file_id}")
 async def download_file(file_id: str):
     """Download processed image"""
     file_path = UPLOAD_DIR / file_id
@@ -185,7 +204,5 @@ async def download_file(file_id: str):
     return FileResponse(file_path)
 
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
     
