@@ -16,37 +16,39 @@ import numpy as np
 
 class TestImageAnalyzer:
     """Test ImageAnalyzer class methods"""
-
+    
     def test_blur_score_calculation(self, sample_image):
         """Test blur detection returns valid score"""
         blur = ImageAnalyzer.calculate_blur_score(sample_image)
         assert isinstance(blur, float), "Blur score should be float"
         assert 0 <= blur <= 100, "Blur score should be between 0-100"
-
+    
     def test_blur_score_with_details(self):
         """Test blur detection with detailed image vs blurry"""
         # Create detailed image with edges
         detailed = np.zeros((100, 100, 3), dtype=np.uint8)
         detailed[20:80, 20:80] = 255  # White square on black background
+        
         # Create blurry version
         blurry = cv2.GaussianBlur(detailed, (21, 21), 0)
+        
         detailed_blur = ImageAnalyzer.calculate_blur_score(detailed)
         blurry_blur = ImageAnalyzer.calculate_blur_score(blurry)
-        # E501: Line too long fixed by wrapping comment
+        
         # Detailed image should have higher blur score (sharper)
         assert detailed_blur > blurry_blur, "Detailed image should have higher blur score than blurry"
-
+    
     def test_brightness_calculation(self, sample_image):
         """Test brightness calculation"""
         brightness = ImageAnalyzer.calculate_brightness(sample_image)
         assert isinstance(brightness, float), "Brightness should be float"
         assert 0 <= brightness <= 100, "Brightness should be 0-100"
-
+    
     def test_brightness_bright_image(self, bright_image):
         """Bright image should have high brightness score"""
         brightness = ImageAnalyzer.calculate_brightness(bright_image)
         assert brightness > 50, "Bright image should have high brightness"
-
+    
     def test_brightness_dark_image(self, dark_image):
         """Dark image should have low brightness score"""
         brightness = ImageAnalyzer.calculate_brightness(dark_image)
@@ -57,12 +59,12 @@ class TestImageAnalyzer:
         contrast = ImageAnalyzer.calculate_contrast(sample_image)
         assert isinstance(contrast, float), "Contrast should be float"
         assert contrast >= 0, "Contrast should be non-negative"
-
+    
     def test_contrast_high_contrast_image(self, high_contrast_image):
         """High contrast image should have high contrast score"""
         contrast = ImageAnalyzer.calculate_contrast(high_contrast_image)
         assert contrast > 50, "High contrast image should have high score"
-
+    
     def test_count_objects(self, sample_image):
         """Test object detection"""
         count = ImageAnalyzer.count_objects(sample_image)
@@ -74,7 +76,7 @@ class TestImageAnalyzer:
         enhanced = ImageAnalyzer.enhance_image(sample_image)
         assert enhanced.shape == sample_image.shape, "Shape should be preserved"
         assert enhanced.dtype == sample_image.dtype, "Data type should match"
-
+    
     def test_quality_rating_excellent(self):
         """Test quality rating for excellent image"""
         rating = ImageAnalyzer.get_quality_rating(80, 80, 80)
@@ -84,7 +86,7 @@ class TestImageAnalyzer:
         """Test quality rating for good image"""
         rating = ImageAnalyzer.get_quality_rating(60, 60, 60)
         assert rating == "Good", "Rating should be Good"
-
+    
     def test_quality_rating_fair(self):
         """Test quality rating for fair image"""
         rating = ImageAnalyzer.get_quality_rating(40, 40, 40)
@@ -94,7 +96,7 @@ class TestImageAnalyzer:
         """Test quality rating for poor image"""
         rating = ImageAnalyzer.get_quality_rating(20, 20, 20)
         assert rating == "Poor", "Rating should be Poor"
-
+    
     def test_read_image_valid(self, sample_image):
         """Test reading valid image"""
         _, buffer = cv2.imencode('.jpg', sample_image)

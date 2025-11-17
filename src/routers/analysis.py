@@ -1,8 +1,8 @@
 import logging
-from fastapi import APIRouter, UploadFile, File, HTTPException
+
 from datetime import datetime
 import uuid
-from pathlib import Path
+# from pathlib import Path
 # NOTE: Removed dependency on UPLOAD_DIR and cv2/numpy/ImageAnalyzer from here for cleanup
 # These are only used internally by core/utils, or should be imported directly.
 
@@ -10,7 +10,8 @@ from pathlib import Path
 import cv2
 import uuid
 from src.core.image_processor import ImageAnalyzer
-from main import UPLOAD_DIR
+from src.utils.file_handler import UPLOAD_DIR
+from fastapi import APIRouter, UploadFile, File, HTTPException
 # -------------------------
 router = APIRouter(
     prefix="",
@@ -53,22 +54,17 @@ async def analyze_image(file: UploadFile = File(...)):
     try:
         content = await file.read()
         logger.info(f"Received file for analysis: {file.filename}")
-        
         # --- Integration Fix (Calling Live Logic) ---
         image = ImageAnalyzer.read_image(content) # Use the core read_image function
-
         # --- Live Metric Calculation (Replacing Placeholders) ---
         blur_score = ImageAnalyzer.calculate_blur_score(image)
         brightness = ImageAnalyzer.calculate_brightness(image)
         contrast = ImageAnalyzer.calculate_contrast(image)
         object_count = ImageAnalyzer.count_objects(image)
         rating = ImageAnalyzer.get_quality_rating(blur_score, brightness, contrast)
-        
         # --- Image Info (Replacing Placeholders) ---
         height, width = image.shape[:2]
-       
         recommendations = generate_recommendations(blur_score, brightness, contrast)
-
         return {
             "filename": file.filename,
             "timestamp": datetime.now().isoformat(),
@@ -86,42 +82,33 @@ async def analyze_image(file: UploadFile = File(...)):
             },
             "recommendations": recommendations
         }
-    
     except ValueError as e:
         # NOTE: Using raise...from e is better, but this matches original structure
         raise HTTPException(status_code=400, detail=str(e)) 
     except Exception as e:
         logger.error(f"Analysis error: {str(e)}")
         raise HTTPException(status_code=500, detail="Image analysis failed")
-
-
-
 # Add enhance endpoint
 @router.post("/enhance")
 async def enhance_image_endpoint(file: UploadFile = File(...)):
     """Enhance image and return analysis"""
     try:
         content = await file.read()
-        
         # NOTE: This line requires ImageAnalyzer class and read_image method to be fully coded
         image = ImageAnalyzer.read_image(content) 
-
         # calculate original metrics
         original_blur = ImageAnalyzer.calculate_blur_score(image)
         original_brightness = ImageAnalyzer.calculate_brightness(image)
         original_contrast = ImageAnalyzer.calculate_contrast(image)
-         
         # enhance endpoint
         enhanced_image = ImageAnalyzer.enhance_image(image)
         enhanced_blur = ImageAnalyzer.calculate_blur_score(enhanced_image)
         enhanced_brightness = ImageAnalyzer.calculate_brightness(enhanced_image)
         enhanced_contrast = ImageAnalyzer.calculate_contrast(enhanced_image)
-
         # save enhanced image
         file_id = str(uuid.uuid4()) # uuid now defined
         output_path = UPLOAD_DIR / f"{file_id}_enhanced.jpg"
         cv2.imwrite(str(output_path), enhanced_image) # cv2 now defined
-
         # --- This block must be defined inside the 'try' block before the final return ---
         detailed_response = {
             "filename": file.filename,
@@ -144,14 +131,46 @@ async def enhance_image_endpoint(file: UploadFile = File(...)):
             "download_url": f"/download/{file_id}_enhanced.jpg"
         }
 # ---------------------------------------------------------------------------------
-
         return detailed_response
-
     except Exception as e:
         # NOTE: Use logger.error("Enhancement error: %s", e) for Pylint compliance
         logger.error(f"Enhancement error: {str(e)}") 
         raise HTTPException(status_code=500, detail="Image enhancement failed")
-
-
-
-
+@router.post("/batch-analyze")
+async def batch_analyze(files: list[UploadFile] = File(...)):
+    """Analyze multiple images in batch (max 10)."""
+    if len(files) > 10:
+        raise HTTPException(status_code=400, detail="Maximum 10 images allowed")
+    
+    results = []
+    errors = []
+    
+    for idx, file in enumerate(files):
+        try:
+            content = await file.read()
+            # Use the core ImageAnalyzer class
+            image = ImageAnalyzer.read_image(content)
+            
+            blur_score = ImageAnalyzer.calculate_blur_score(image)
+            brightness = ImageAnalyzer.calculate_brightness(image)
+            contrast = ImageAnalyzer.calculate_contrast(image)
+            rating = ImageAnalyzer.get_quality_rating(blur_score, brightness, contrast)
+            
+            results.append({
+                "index": idx,
+                "filename": file.filename,
+                "blur_score": blur_score,
+                "brightness": brightness,
+                "contrast": contrast,
+                "quality_rating": rating
+            })
+        
+        except Exception as e:
+            errors.append({"index": idx, "filename": file.filename, "error": str(e)})
+    
+    return {
+        "total_processed": len(results),
+        "total_errors": len(errors),
+        "results": results,
+        "errors": errors if errors else None
+    }

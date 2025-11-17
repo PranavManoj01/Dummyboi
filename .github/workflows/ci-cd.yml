@@ -2,10 +2,10 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop,APIINFRA/IPA14]
   pull_request:
     # Trigger on PRs targeting both main and develop (Git Flow requirement)
-    branches: [main, develop]
+    branches: [main, develop,APIINFRA/IPA14]
 
 # Define stages as separate jobs for clarity and dependency tracking
 jobs:
@@ -50,7 +50,7 @@ jobs:
         # Pylint targets the source code 'src/'
         # Output saved to a report file
         run: |
-          pylint src/ --output-format=json:pylint-report.json || true
+          pylint src/ --extension-pkg-whitelist=cv2,numpy,PIL --output-format=json:pylint-report.json || true
           # '|| true' allows subsequent stages to run even if score is below 7.5 
           # The report will still be available for the Deployment Artifact.
 
@@ -93,7 +93,7 @@ jobs:
       - name: Install Test Environment Dependencies
         run: |
           # Install the core processing libraries needed by conftest.py and image_processor.py
-          pip install numpy opencv-python pillow pytest pytest-cov
+          pip install numpy opencv-python pillow pytest pytest-cov fastapi uvicorn httpx pytest-asyncio python-multipart
       # --- END FIX ---
       
 
@@ -112,7 +112,7 @@ jobs:
   deploy:
     needs: test_coverage # Only runs after all 5 quality stages (Lint/Security via implicit dependency on test_coverage's needs)
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main' # Only deploy when merging to main/develop
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

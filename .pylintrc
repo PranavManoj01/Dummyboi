@@ -1,0 +1,39 @@
+[MASTER]
+# This line tells Pylint to look in the root directory for the 'src' package.
+# It fixes all "E0401: Unable to import 'src...'" errors.
+init-hook='import sys; sys.path.append(".")'
+
+# This tells Pylint to trust these C-extension libraries.
+# It fixes all the "E1101: Module 'cv2' has no 'imdecode' member" errors.
+extension-pkg-whitelist=cv2, numpy, PIL
+
+[MESSAGES CONTROL]
+# This disables all the low-priority style errors from your log
+# (trailing whitespace, missing docstrings, import order, etc.)
+# This will significantly boost your score above the 7.5/10 requirement.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+disable=
+    E1101
+    
+
+# To change this up

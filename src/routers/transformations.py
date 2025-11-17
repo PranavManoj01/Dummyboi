@@ -6,7 +6,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Query
 from fastapi.responses import FileResponse 
 
 # Import the core logic and utilities (currently located in main.py)
-from main import UPLOAD_DIR
+from src.utils.file_handler import UPLOAD_DIR
 import cv2
 from src.core.image_processor import ImageAnalyzer
 logger = logging.getLogger(__name__)
@@ -28,13 +28,10 @@ async def resize_image(
     try:
         if percentage and (width or height):
             raise ValueError("Provide either percentage OR (width, height), not both")
-        
         if not percentage and (not width or not height):
             raise ValueError("Provide either percentage OR both width and height")
-        
         content = await file.read()
         image = ImageAnalyzer.read_image(content)
-        
         if percentage:
             resized = ImageAnalyzer.resize_by_percentage(image, percentage)
             new_width, new_height = resized.shape[1], resized.shape[0]
@@ -60,8 +57,6 @@ async def resize_image(
     except Exception as e:
         logger.error(f"Resize error: {str(e)}")
         raise HTTPException(status_code=500, detail="Image resize failed")
-    
-
 @router.post("/crop")
 async def crop_image(
     file: UploadFile = File(...),
@@ -75,11 +70,9 @@ async def crop_image(
         content = await file.read()
         image = ImageAnalyzer.read_image(content)
         cropped = ImageAnalyzer.crop_image(image, x, y, width, height)
-        
         file_id = str(uuid.uuid4())
         output_path = UPLOAD_DIR / f"{file_id}_cropped.jpg"
         cv2.imwrite(str(output_path), cropped)
-        
         return {
             "filename": file.filename,
             "timestamp": datetime.now().isoformat(),
@@ -89,14 +82,11 @@ async def crop_image(
             "transformation": "crop",
             "download_url": f"/download/{file_id}_cropped.jpg"
         }
-    
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Crop error: {str(e)}")
         raise HTTPException(status_code=500, detail="Image crop failed")
-    
-
 @router.post("/filter")
 async def apply_filter(
     file: UploadFile = File(...),
@@ -107,15 +97,12 @@ async def apply_filter(
         valid_filters = ["blur", "sharpen", "edge", "smooth", "grayscale", "sepia"]
         if filter_type not in valid_filters:
             raise ValueError(f"Filter must be one of: {', '.join(valid_filters)}")
-        
         content = await file.read()
         image = ImageAnalyzer.read_image(content)
         filtered = ImageAnalyzer.apply_filter(image, filter_type)
-        
         file_id = str(uuid.uuid4())
         output_path = UPLOAD_DIR / f"{file_id}_{filter_type}.jpg"
         cv2.imwrite(str(output_path), filtered)
-        
         return {
             "filename": file.filename,
             "timestamp": datetime.now().isoformat(),
@@ -124,13 +111,11 @@ async def apply_filter(
             "transformation": "filter",
             "download_url": f"/download/{file_id}_{filter_type}.jpg"
         }
-    
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Filter error: {str(e)}")
         raise HTTPException(status_code=500, detail="Filter application failed")
-
 @router.post("/rotate")
 async def rotate_image(
     file: UploadFile = File(...),
@@ -140,15 +125,12 @@ async def rotate_image(
     try:
         if angle < -360 or angle > 360:
             raise ValueError("Angle must be between -360 and 360")
-        
         content = await file.read()
         image = ImageAnalyzer.read_image(content)
         rotated = ImageAnalyzer.rotate_image(image, angle)
-        
         file_id = str(uuid.uuid4())
         output_path = UPLOAD_DIR / f"{file_id}_rotated.jpg"
         cv2.imwrite(str(output_path), rotated)
-        
         return {
             "filename": file.filename,
             "timestamp": datetime.now().isoformat(),
@@ -156,13 +138,11 @@ async def rotate_image(
             "transformation": "rotate",
             "download_url": f"/download/{file_id}_rotated.jpg"
         }
-    
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Rotate error: {str(e)}")
         raise HTTPException(status_code=500, detail="Image rotation failed")
-    
 @router.post("/flip")
 async def flip_image(
     file: UploadFile = File(...),
@@ -172,15 +152,12 @@ async def flip_image(
     try:
         if direction not in ["horizontal", "vertical"]:
             raise ValueError("Direction must be 'horizontal' or 'vertical'")
-        
         content = await file.read()
         image = ImageAnalyzer.read_image(content)
         flipped = ImageAnalyzer.flip_image(image, direction)
-        
         file_id = str(uuid.uuid4())
         output_path = UPLOAD_DIR / f"{file_id}_flipped_{direction}.jpg"
         cv2.imwrite(str(output_path), flipped)
-        
         return {
             "filename": file.filename,
             "timestamp": datetime.now().isoformat(),
@@ -188,13 +165,11 @@ async def flip_image(
             "transformation": "flip",
             "download_url": f"/download/{file_id}_flipped_{direction}.jpg"
         }
-    
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Flip error: {str(e)}")
         raise HTTPException(status_code=500, detail="Image flip failed")
-    
 @router.get("/download/{file_id}")
 async def download_file(file_id: str):
     """Download processed image"""

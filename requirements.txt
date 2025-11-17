@@ -10,3 +10,4 @@ pytest-asyncio
 httpx
 flake8
 pylint
+python-multipart

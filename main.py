@@ -9,13 +9,6 @@ from src.routers import transformations # <-- NEW: Router for all transforms
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ---------------- Upload Directory (Will be moved to utils next) ----------------
-UPLOAD_DIR = Path("uploads")
-if not UPLOAD_DIR.exists():
-    UPLOAD_DIR.mkdir()
-    logger.info(f"Created missing uploads directory at: {UPLOAD_DIR.resolve()}")
-else:
-    logger.info(f"Uploads directory already exists: {UPLOAD_DIR.resolve()}")
 
 # ---------------- FastAPI App ----------------
 app = FastAPI(
